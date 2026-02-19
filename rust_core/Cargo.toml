@@ -1,0 +1,76 @@
+[package]
+name = "koder_core"
+version = "0.1.0"
+edition = "2021"
+description = "Blazing fast code editor core engine for Koder"
+authors = ["Koder Team"]
+license = "MIT"
+
+[lib]
+name = "koder_core"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[dependencies]
+# Text buffer - efficient rope data structure
+ropey = "1.6"
+
+# Syntax highlighting with tree-sitter
+tree-sitter = "0.20"
+tree-sitter-javascript = "0.20"
+tree-sitter-typescript = "0.20"
+tree-sitter-python = "0.20"
+tree-sitter-rust = "0.20"
+tree-sitter-c = "0.20"
+tree-sitter-cpp = "0.20"
+tree-sitter-go = "0.20"
+tree-sitter-java = "0.20"
+tree-sitter-json = "0.20"
+tree-sitter-html = "0.20"
+tree-sitter-css = "0.20"
+tree-sitter-bash = "0.20"
+tree-sitter-markdown = "0.10"
+tree-sitter-yaml = "0.5"
+tree-sitter-toml = "0.20"
+tree-sitter-dart = "0.0.4"
+tree-sitter-kotlin = "0.3"
+tree-sitter-swift = "0.4"
+tree-sitter-ruby = "0.20"
+tree-sitter-lua = "0.1"
+tree-sitter-xml = "0.0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Regex for search
+regex = "1.10"
+
+# FFI support
+flutter_rust_bridge = "1.82"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Async runtime
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
+
+# LSP types
+lsp-types = "0.94"
+
+# Logging
+log = "0.4"
+env_logger = "0.10"
+
+# Lazy static for global state
+lazy_static = "1.4"
+
+# UUID generation
+uuid = { version = "1.0", features = ["v4"] }
+
+# Unicode support
+unicode-segmentation = "1.10"
+unicode-width = "0.1"
+
+[build-dependencies]
+flutter_rust_bridge_codegen = "1.82"
