@@ -34,10 +34,8 @@
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 
-    <style name="Theme.Koder.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
-        <item name="windowSplashScreenBackground">@color/md_theme_background</item>
-        <item name="postSplashScreenTheme">@style/Theme.Koder</item>
+    <style name="Theme.Koder.Splash" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/md_theme_background</item>
     </style>
 
     <style name="Theme.Koder.Transparent" parent="Theme.Material3.DayNight.NoActionBar">

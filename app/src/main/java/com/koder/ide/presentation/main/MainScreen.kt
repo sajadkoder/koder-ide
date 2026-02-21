@@ -103,7 +103,7 @@ fun MainScreen(
                         )
                         Text(
                             text = "Koder IDE",
-                            style = MaterialTheme.colorScheme.typography.titleLarge
+                            style = MaterialTheme.typography.titleLarge
                         )
                     }
                 },
@@ -127,7 +127,7 @@ fun MainScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             )
         },
@@ -182,7 +182,7 @@ private fun SidebarPanel(
         modifier = Modifier
             .width(300.dp)
             .fillMaxHeight()
-            .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
         NavigationRail(
             modifier = Modifier.fillMaxHeight()
@@ -290,7 +290,7 @@ private fun BottomPanel(
         modifier = Modifier
             .fillMaxWidth()
             .height(250.dp)
-            .background(MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
         TabRow(
             selectedTabIndex = BottomPanelTab.entries.indexOf(currentTab),

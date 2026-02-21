@@ -1,6 +1,7 @@
 package com.koder.ide.presentation.git
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,15 +19,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Branch
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Commit
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.material3.AlertDialog
@@ -34,6 +36,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -179,7 +183,7 @@ private fun GitHeader(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        Icons.Default.Branch,
+                        Icons.Default.Code,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -236,7 +240,7 @@ private fun GitHeader(
                     Text("Commit")
                 }
                 Button(onClick = onBranch) {
-                    Icon(Icons.Default.Branch, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Code, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Branches")
                 }
@@ -288,7 +292,6 @@ private fun GitStatusView(
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
-
         if (status.untracked.isNotEmpty()) {
             Text(
                 text = "Untracked Files",

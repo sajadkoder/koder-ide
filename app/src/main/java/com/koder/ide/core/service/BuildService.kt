@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 
 @AndroidEntryPoint
 class BuildService : Service() {
@@ -52,7 +53,7 @@ class BuildService : Service() {
         buildProcess?.destroy()
     }
 
-    fun buildProject(projectPath: String, buildType: BuildType = BuildType.DEBUG) {
+    fun buildProject(projectPath: String, buildType: BuildType = BuildType.GRADLE) {
         serviceScope.launch {
             _isBuilding.value = true
             _buildOutput.value = "Starting build...\n"
@@ -76,10 +77,8 @@ class BuildService : Service() {
         _buildOutput.value += "Running Gradle build...\n"
         _buildProgress.value = 10
 
-        val processBuilder = ProcessBuilder(
-            "./gradlew", "assembleDebug"
-        )
-        processBuilder.directory(java.io.File(projectPath))
+        val processBuilder = ProcessBuilder("./gradlew", "assembleDebug")
+        processBuilder.directory(File(projectPath))
         
         buildProcess = processBuilder.start()
         
@@ -101,22 +100,13 @@ class BuildService : Service() {
         _buildOutput.value += "Running CMake build...\n"
         _buildProgress.value = 10
 
-        val buildDir = java.io.File(projectPath, "build")
+        val buildDir = File(projectPath, "build")
         buildDir.mkdirs()
 
-        val processBuilder = ProcessBuilder(
-            "cmake", "..", "&&", "make"
-        )
+        val processBuilder = ProcessBuilder("cmake", "..")
         processBuilder.directory(buildDir)
         
         buildProcess = processBuilder.start()
-        
-        val reader = buildProcess!!.inputStream.bufferedReader()
-        var line: String?
-        while (reader.readLine().also { line = it } != null) {
-            _buildOutput.value += "$line\n"
-        }
-        
         buildProcess!!.waitFor()
         _buildProgress.value = 100
     }
@@ -126,16 +116,9 @@ class BuildService : Service() {
         _buildProgress.value = 10
 
         val processBuilder = ProcessBuilder("make")
-        processBuilder.directory(java.io.File(projectPath))
+        processBuilder.directory(File(projectPath))
         
         buildProcess = processBuilder.start()
-        
-        val reader = buildProcess!!.inputStream.bufferedReader()
-        var line: String?
-        while (reader.readLine().also { line = it } != null) {
-            _buildOutput.value += "$line\n"
-        }
-        
         buildProcess!!.waitFor()
         _buildProgress.value = 100
     }
@@ -177,7 +160,5 @@ class BuildService : Service() {
 enum class BuildType {
     GRADLE,
     CMAKE,
-    MAKE,
-    DEBUG,
-    RELEASE
+    MAKE
 }

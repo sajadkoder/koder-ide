@@ -6,6 +6,7 @@ plugins {
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.parcelize")
 }
 
 val localProperties = Properties()
@@ -91,6 +92,7 @@ dependencies {
     androidTestImplementation(composeBom)
 
     implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.fragment:fragment-ktx:1.6.2")
@@ -142,10 +144,6 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
 
     implementation("org.apache.commons:commons-text:1.11.0")
-
-    implementation("io.github.rosemoe.sora-editor:editor:0.23.0")
-    implementation("io.github.rosemoe.sora-editor:language-textmate:0.23.0")
-    implementation("io.github.rosemoe.sora-editor:language-treesitter:0.23.0")
 
     implementation("androidx.webkit:webkit:1.9.0")
 

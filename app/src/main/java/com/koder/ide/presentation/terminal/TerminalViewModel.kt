@@ -7,7 +7,6 @@ import com.koder.ide.core.util.CommandResult
 import com.koder.ide.core.util.SecurityUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,7 +22,7 @@ class TerminalViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(TerminalUiState())
     val uiState: StateFlow<TerminalUiState> = _uiState.asStateFlow()
 
-    private var currentJob: Job? = null
+    private var currentJob: kotlinx.coroutines.Job? = null
     private var lineIdCounter = 0L
 
     fun updateCommand(command: String) {
