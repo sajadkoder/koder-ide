@@ -290,8 +290,7 @@ private fun CodeEditor(
                     value = content,
                     onValueChange = onContentChange,
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
+                        .weight(1f),
                     textStyle = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurface

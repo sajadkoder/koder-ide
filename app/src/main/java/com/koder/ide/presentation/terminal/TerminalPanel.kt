@@ -50,15 +50,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 
-import com.koder.ide.domain.model.LineType
-import com.koder.ide.domain.model.TerminalLine
+import androidx.compose.foundation.lazy.rememberLazyListState
 
 @Composable
 fun TerminalPanel(
     viewModel: TerminalViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val listState = rememberLazyListState(uiState.outputLines)
+    val listState = rememberLazyListState()
 
     Column(
         modifier = Modifier

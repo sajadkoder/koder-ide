@@ -205,9 +205,9 @@ class TerminalViewModel @Inject constructor(
     }
 
     private suspend fun executeSystemCommand(command: String) {
+        val parts = command.split(" ")
         withContext(Dispatchers.IO) {
             try {
-                val parts = command.split(" ")
                 val result = SecurityUtils.executeCommand(
                     command = parts,
                     workingDir = File(_uiState.value.currentDirectory),

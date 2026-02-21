@@ -294,7 +294,7 @@ private fun BottomPanel(
     ) {
         TabRow(
             selectedTabIndex = BottomPanelTab.entries.indexOf(currentTab),
-            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         ) {
             BottomPanelTab.entries.forEach { tab ->
                 Tab(
