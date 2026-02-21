@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_file"
+        android:enabled="true"
+        android:icon="@drawable/ic_file_add"
+        android:shortcutShortLabel="@string/action_new_file">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.koder.ide"
+            android:targetClass="com.koder.ide.presentation.main.MainActivity">
+            <extra android:name="action" android:value="new_file" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="open_file"
+        android:enabled="true"
+        android:icon="@drawable/ic_folder_open"
+        android:shortcutShortLabel="@string/action_open_file">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.koder.ide"
+            android:targetClass="com.koder.ide.presentation.main.MainActivity">
+            <extra android:name="action" android:value="open_file" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="terminal"
+        android:enabled="true"
+        android:icon="@drawable/ic_terminal"
+        android:shortcutShortLabel="@string/action_terminal">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.koder.ide"
+            android:targetClass="com.koder.ide.presentation.main.MainActivity">
+            <extra android:name="action" android:value="terminal" />
+        </intent>
+    </shortcut>
+</shortcuts>

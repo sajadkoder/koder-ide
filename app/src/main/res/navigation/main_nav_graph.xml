@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main_nav_graph"
+    app:startDestination="@id/editorFragment">
+
+    <fragment
+        android:id="@+id/editorFragment"
+        android:name="com.koder.ide.presentation.editor.EditorFragment"
+        android:label="Editor">
+        <argument
+            android:name="filePath"
+            app:argType="string"
+            app:nullable="true" />
+        <action
+            android:id="@+id/action_editor_to_settings"
+            app:destination="@id/settingsFragment" />
+        <action
+            android:id="@+id/action_editor_to_git"
+            app:destination="@id/gitFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/terminalFragment"
+        android:name="com.koder.ide.presentation.terminal.TerminalFragment"
+        android:label="Terminal" />
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.koder.ide.presentation.settings.SettingsFragment"
+        android:label="Settings" />
+
+    <fragment
+        android:id="@+id/gitFragment"
+        android:name="com.koder.ide.presentation.git.GitFragment"
+        android:label="Git" />
+
+    <fragment
+        android:id="@+id/explorerFragment"
+        android:name="com.koder.ide.presentation.explorer.ExplorerFragment"
+        android:label="Explorer">
+        <argument
+            android:name="projectPath"
+            app:argType="string"
+            app:nullable="true" />
+    </fragment>
+
+</navigation>
