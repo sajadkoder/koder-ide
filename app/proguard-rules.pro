@@ -63,6 +63,9 @@
 # JGit
 -keep class org.eclipse.jgit.** { *; }
 -dontwarn org.eclipse.jgit.**
+-dontwarn org.slf4j.**
+-keep class org.slf4j.** { *; }
+-keep interface org.slf4j.** { *; }
 
 # Sora Editor
 -keep class io.github.rosemoe.sora.** { *; }

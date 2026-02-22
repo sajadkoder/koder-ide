@@ -1,145 +1,129 @@
 package com.koder.ide.core.util
 
 import java.io.File
-import java.util.Locale
+import java.text.DecimalFormat
+import java.text.SimpleDateFormat
+import java.util.*
 
 object FileUtils {
-
-    private val LANGUAGE_EXTENSIONS = mapOf(
-        "kt" to "Kotlin",
-        "java" to "Java",
-        "py" to "Python",
-        "js" to "JavaScript",
-        "ts" to "TypeScript",
-        "jsx" to "JSX",
-        "tsx" to "TSX",
-        "c" to "C",
-        "cpp" to "C++",
-        "h" to "C Header",
-        "hpp" to "C++ Header",
-        "cs" to "C#",
-        "go" to "Go",
-        "rs" to "Rust",
-        "rb" to "Ruby",
-        "php" to "PHP",
-        "swift" to "Swift",
-        "m" to "Objective-C",
-        "mm" to "Objective-C++",
-        "scala" to "Scala",
-        "groovy" to "Groovy",
-        "lua" to "Lua",
-        "r" to "R",
-        "sql" to "SQL",
-        "html" to "HTML",
-        "htm" to "HTML",
-        "css" to "CSS",
-        "scss" to "SCSS",
-        "sass" to "Sass",
-        "less" to "Less",
-        "xml" to "XML",
-        "json" to "JSON",
-        "yaml" to "YAML",
-        "yml" to "YAML",
-        "toml" to "TOML",
-        "ini" to "INI",
-        "properties" to "Properties",
-        "sh" to "Shell",
-        "bash" to "Bash",
-        "zsh" to "Zsh",
-        "ps1" to "PowerShell",
-        "bat" to "Batch",
-        "md" to "Markdown",
-        "markdown" to "Markdown",
-        "rst" to "reStructuredText",
-        "tex" to "LaTeX",
-        "gradle" to "Gradle",
-        "kts" to "Kotlin Script",
-        "dart" to "Dart",
-        "vue" to "Vue",
-        "svelte" to "Svelte",
-        "ex" to "Elixir",
-        "exs" to "Elixir",
-        "erl" to "Erlang",
-        "hs" to "Haskell",
-        "clj" to "Clojure",
-        "cljs" to "ClojureScript",
-        "lisp" to "Lisp",
-        "el" to "Emacs Lisp",
-        "vim" to "Vim Script",
-        "dockerfile" to "Dockerfile",
-        "makefile" to "Makefile",
-        "cmake" to "CMake"
-    )
-
-    fun getLanguageFromExtension(extension: String): String {
-        return LANGUAGE_EXTENSIONS[extension.lowercase(Locale.getDefault())] ?: "Plain Text"
-    }
-
-    fun getLanguageFromFile(file: File): String {
-        val name = file.name.lowercase(Locale.getDefault())
-        if (name == "dockerfile" || name == "makefile" || name == "cmakelists.txt") {
-            return when (name) {
-                "dockerfile" -> "Dockerfile"
-                "makefile" -> "Makefile"
-                "cmakelists.txt" -> "CMake"
-                else -> "Plain Text"
-            }
+    
+    private val sizeFormat = DecimalFormat("#,##0.#")
+    private val dateFormat = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
+    
+    private val sizeUnits = arrayOf("B", "KB", "MB", "GB")
+    
+    fun formatFileSize(bytes: Long): String {
+        if (bytes < 1024) return "$bytes B"
+        var size = bytes.toDouble()
+        var unitIndex = 0
+        while (size >= 1024 && unitIndex < sizeUnits.size - 1) {
+            size /= 1024
+            unitIndex++
         }
-        val extension = file.extension
-        return getLanguageFromExtension(extension)
+        return "${sizeFormat.format(size)} ${sizeUnits[unitIndex]}"
     }
-
-    fun getFileIcon(language: String): Int {
-        return when (language) {
-            "Kotlin", "Kotlin Script" -> com.koder.ide.R.drawable.ic_language_kotlin
-            "Java" -> com.koder.ide.R.drawable.ic_language_java
-            "Python" -> com.koder.ide.R.drawable.ic_language_python
-            "JavaScript", "JSX" -> com.koder.ide.R.drawable.ic_language_javascript
-            "TypeScript", "TSX" -> com.koder.ide.R.drawable.ic_language_typescript
-            "HTML" -> com.koder.ide.R.drawable.ic_language_html
-            "CSS", "SCSS", "Sass", "Less" -> com.koder.ide.R.drawable.ic_language_css
-            "JSON" -> com.koder.ide.R.drawable.ic_language_json
-            "Markdown" -> com.koder.ide.R.drawable.ic_language_markdown
-            else -> com.koder.ide.R.drawable.ic_file_generic
+    
+    fun formatDate(timestamp: Long): String = dateFormat.format(Date(timestamp))
+    
+    fun getFileExtension(fileName: String): String {
+        val lastDot = fileName.lastIndexOf('.')
+        return if (lastDot > 0) fileName.substring(lastDot + 1) else ""
+    }
+    
+    fun getFileName(path: String): String {
+        val lastSlash = path.lastIndexOf('/')
+        return if (lastSlash >= 0) path.substring(lastSlash + 1) else path
+    }
+    
+    fun getFileIconName(extension: String): String = when (extension.lowercase()) {
+        "java" -> "java"
+        "kt", "kts" -> "kotlin"
+        "py" -> "python"
+        "js" -> "javascript"
+        "ts" -> "typescript"
+        "json" -> "json"
+        "xml" -> "xml"
+        "html", "htm" -> "html"
+        "css" -> "css"
+        "md" -> "markdown"
+        "c", "cpp", "h", "hpp" -> "cpp"
+        "sh" -> "shell"
+        "yaml", "yml" -> "yaml"
+        "sql" -> "database"
+        "txt" -> "text"
+        "png", "jpg", "jpeg", "gif", "webp", "svg" -> "image"
+        "mp3", "wav", "ogg" -> "audio"
+        "mp4", "avi", "mkv" -> "video"
+        "zip", "tar", "gz", "rar", "7z" -> "archive"
+        else -> "file"
+    }
+    
+    fun isTextFile(extension: String): Boolean {
+        return extension.lowercase() in setOf(
+            "java", "kt", "kts", "py", "js", "ts", "jsx", "tsx",
+            "json", "xml", "html", "htm", "css", "scss", "sass", "less",
+            "md", "markdown", "txt", "log", "csv",
+            "c", "cpp", "h", "hpp", "cc", "cxx",
+            "sh", "bash", "zsh", "bat", "cmd", "ps1",
+            "yaml", "yml", "toml", "ini", "cfg", "conf", "properties",
+            "sql", "gradle", "ktm", "swift", "go", "rs", "rb", "php",
+            "vue", "svelte", "astro"
+        )
+    }
+    
+    fun listFiles(directory: File, showHidden: Boolean = false): List<File> {
+        return directory.listFiles()
+            ?.filter { showHidden || !it.name.startsWith(".") }
+            ?.sortedWith(compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase() })
+            ?: emptyList()
+    }
+    
+    fun createFile(parent: File, name: String): File? {
+        return try {
+            File(parent, name).apply { createNewFile() }
+        } catch (e: Exception) {
+            null
         }
     }
-
-    fun isBinaryFile(file: File): Boolean {
-        val binaryExtensions = setOf(
-            "png", "jpg", "jpeg", "gif", "bmp", "ico", "svg",
-            "mp3", "mp4", "wav", "avi", "mov", "mkv",
-            "zip", "tar", "gz", "rar", "7z",
-            "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
-            "exe", "dll", "so", "dylib", "a", "o",
-            "jar", "aar", "apk", "aab", "dex",
-            "class", "obj", "bin", "dat"
-        )
-        return file.extension.lowercase(Locale.getDefault()) in binaryExtensions
+    
+    fun createDirectory(parent: File, name: String): File? {
+        return try {
+            File(parent, name).apply { mkdirs() }
+        } catch (e: Exception) {
+            null
+        }
     }
-
-    fun isImageFile(file: File): Boolean {
-        val imageExtensions = setOf("png", "jpg", "jpeg", "gif", "bmp", "webp", "svg")
-        return file.extension.lowercase(Locale.getDefault()) in imageExtensions
+    
+    fun deleteRecursively(file: File): Boolean {
+        return if (file.isDirectory) {
+            file.deleteRecursively()
+        } else {
+            file.delete()
+        }
     }
-
-    fun isCodeFile(file: File): Boolean {
-        val codeExtensions = setOf(
-            "kt", "java", "py", "js", "ts", "jsx", "tsx",
-            "c", "cpp", "h", "hpp", "cs", "go", "rs", "rb",
-            "php", "swift", "m", "mm", "scala", "groovy",
-            "lua", "r", "sql", "html", "css", "scss", "sass",
-            "less", "xml", "json", "yaml", "yml", "toml",
-            "sh", "bash", "zsh", "ps1", "bat", "md"
-        )
-        return file.extension.lowercase(Locale.getDefault()) in codeExtensions
+    
+    fun copyFile(source: File, dest: File): Boolean {
+        return try {
+            source.copyTo(dest, overwrite = true)
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
-
-    fun formatFileSize(size: Long): String {
-        return when {
-            size < 1024 -> "$size B"
-            size < 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f KB", size / 1024.0)
-            size < 1024 * 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", size / (1024.0 * 1024))
-            else -> String.format(Locale.getDefault(), "%.1f GB", size / (1024.0 * 1024 * 1024))
+    
+    fun moveFile(source: File, dest: File): Boolean {
+        return try {
+            source.renameTo(dest)
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    fun renameFile(file: File, newName: String): Boolean {
+        return try {
+            file.renameTo(File(file.parentFile ?: return false, newName))
+        } catch (e: Exception) {
+            false
         }
     }
 }

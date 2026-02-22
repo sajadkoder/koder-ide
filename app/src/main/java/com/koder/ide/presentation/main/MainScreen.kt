@@ -1,379 +1,638 @@
 package com.koder.ide.presentation.main
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDrawerState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
-import com.koder.ide.presentation.editor.EditorScreen
-import com.koder.ide.presentation.explorer.ExplorerScreen
-import com.koder.ide.presentation.terminal.TerminalPanel
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.koder.ide.core.editor.CodeEditorView
+import com.koder.ide.core.editor.LanguageManager
+import com.koder.ide.core.util.FileUtils
+import com.koder.ide.presentation.theme.KoderTheme
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    navController: NavHostController,
-    viewModel: MainViewModel
+    viewModel: MainViewModel = viewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val currentFilePath by viewModel.currentFilePath.collectAsState()
-    var currentTab by remember { mutableStateOf(0) }
-    val openFiles = remember { mutableStateOf<List<String>>(emptyList()) }
+    val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+    
+    var showNewFileDialog by remember { mutableStateOf(false) }
+    var showNewFolderDialog by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
+    
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { viewModel.openFileFromUri(it, context) }
+    }
 
-    val sidebarTabs = listOf(
-        SidebarTab("Explorer", Icons.Filled.Folder),
-        SidebarTab("Search", Icons.Filled.Search),
-        SidebarTab("Git", Icons.Filled.Code),
-        SidebarTab("Debug", Icons.Filled.Build)
-    )
+    KoderTheme {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Code,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Koder IDE",
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { viewModel.toggleSidebar() }) {
+                            Icon(Icons.Default.Menu, "Toggle sidebar")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
+                            Icon(Icons.Default.FolderOpen, "Open file")
+                        }
+                        IconButton(onClick = { showNewFileDialog = true }) {
+                            Icon(Icons.Default.Add, "New file")
+                        }
+                        IconButton(onClick = { viewModel.toggleTerminal() }) {
+                            Icon(Icons.Default.Terminal, "Terminal")
+                        }
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Default.MoreVert, "More")
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Close All Tabs") },
+                                    onClick = {
+                                        showMenu = false
+                                        state.tabs.forEach { viewModel.closeTab(it.path) }
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Close, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Settings") },
+                                    onClick = { showMenu = false },
+                                    leadingIcon = { Icon(Icons.Default.Settings, null) }
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                )
+            }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                if (state.tabs.isNotEmpty()) {
+                    TabBar(
+                        tabs = state.tabs,
+                        currentIndex = state.currentTabIndex,
+                        onSelect = { viewModel.setCurrentTab(it) },
+                        onClose = { viewModel.closeTab(it) }
+                    )
+                }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Row(modifier = Modifier.weight(1f)) {
+                    AnimatedVisibility(
+                        visible = state.isSidebarOpen,
+                        enter = slideInHorizontally(initialOffsetX = { -it }),
+                        exit = slideOutHorizontally(targetOffsetX = { -it })
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Code,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "Koder IDE",
-                            style = MaterialTheme.typography.titleLarge
+                        FileExplorerSidebar(
+                            projectPath = state.projectPath,
+                            onFileClick = { viewModel.openFile(it) },
+                            onNewFile = { showNewFileDialog = true },
+                            onNewFolder = { showNewFolderDialog = true }
                         )
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { viewModel.toggleSidebar() }) {
-                        Icon(Icons.Default.Menu, contentDescription = "Toggle sidebar")
+
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        val currentFile = state.tabs.getOrNull(state.currentTabIndex)?.let { File(it.path) }
+                        
+                        if (currentFile != null && currentFile.exists()) {
+                            EditorPanel(
+                                file = currentFile,
+                                onSaved = { viewModel.updateTabModified(currentFile.absolutePath, false) },
+                                onModified = { viewModel.updateTabModified(currentFile.absolutePath, true) }
+                            )
+                        } else {
+                            EmptyState(
+                                onOpenFile = { filePickerLauncher.launch(arrayOf("*/*")) },
+                                onNewFile = { showNewFileDialog = true }
+                            )
+                        }
                     }
-                },
-                actions = {
-                    IconButton(onClick = { /* Run */ }) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Run")
-                    }
-                    IconButton(onClick = { /* Build */ }) {
-                        Icon(Icons.Default.Build, contentDescription = "Build")
-                    }
-                    IconButton(onClick = { viewModel.openTerminal() }) {
-                        Icon(Icons.Default.Terminal, contentDescription = "Terminal")
-                    }
-                    IconButton(onClick = { /* Settings */ }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            )
-        },
-        bottomBar = {
-            if (uiState.isBottomPanelOpen) {
-                BottomPanel(
-                    currentTab = uiState.bottomPanelTab,
-                    onTabSelected = { viewModel.setBottomPanelTab(it) },
-                    onClose = { viewModel.toggleBottomPanel() }
-                )
+                }
+
+                AnimatedVisibility(
+                    visible = state.isTerminalOpen,
+                    enter = slideInVertically(initialOffsetY = { it }),
+                    exit = slideOutVertically(targetOffsetY = { it })
+                ) {
+                    TerminalPanel(onClose = { viewModel.toggleTerminal() })
+                }
             }
         }
-    ) { paddingValues ->
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            AnimatedVisibility(
-                visible = uiState.isSidebarOpen,
-                enter = slideInHorizontally(initialOffsetX = { -it }),
-                exit = slideOutHorizontally(targetOffsetX = { -it })
-            ) {
-                SidebarPanel(
-                    tabs = sidebarTabs,
-                    selectedTabIndex = currentTab,
-                    onTabSelected = { currentTab = it },
-                    onFileClick = { path -> viewModel.openFile(path) }
-                )
-            }
 
-            Box(modifier = Modifier.weight(1f)) {
-                EditorScreen(
-                    filePath = currentFilePath,
-                    onOpenFile = { path ->
-                        viewModel.openFile(path)
+        if (showNewFileDialog) {
+            NewFileDialog(
+                projectPath = state.projectPath,
+                isFolder = false,
+                onDismiss = { showNewFileDialog = false },
+                onConfirm = { name ->
+                    state.projectPath?.let { path ->
+                        val file = FileUtils.createFile(File(path), name)
+                        if (file != null) {
+                            viewModel.openFile(file.absolutePath)
+                            Toast.makeText(context, "Created: $name", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Failed to create file", Toast.LENGTH_SHORT).show()
+                        }
                     }
-                )
+                    showNewFileDialog = false
+                }
+            )
+        }
+
+        if (showNewFolderDialog) {
+            NewFileDialog(
+                projectPath = state.projectPath,
+                isFolder = true,
+                onDismiss = { showNewFolderDialog = false },
+                onConfirm = { name ->
+                    state.projectPath?.let { path ->
+                        val folder = FileUtils.createDirectory(File(path), name)
+                        if (folder != null) {
+                            Toast.makeText(context, "Created folder: $name", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Failed to create folder", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    showNewFolderDialog = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun TabBar(
+    tabs: List<EditorTab>,
+    currentIndex: Int,
+    onSelect: (Int) -> Unit,
+    onClose: (String) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        itemsIndexed(tabs, key = { _, it -> it.path }) { index, tab ->
+            val isSelected = index == currentIndex
+            Surface(
+                modifier = Modifier.clickable { onSelect(index) },
+                color = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = if (isSelected) 2.dp else 0.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = tab.name,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.widthIn(max = 120.dp)
+                    )
+                    if (tab.isModified) {
+                        Text(
+                            text = " •",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = { onClose(tab.path) },
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SidebarPanel(
-    tabs: List<SidebarTab>,
-    selectedTabIndex: Int,
-    onTabSelected: (Int) -> Unit,
-    onFileClick: (String) -> Unit
+private fun FileExplorerSidebar(
+    projectPath: String?,
+    onFileClick: (String) -> Unit,
+    onNewFile: () -> Unit,
+    onNewFolder: () -> Unit
 ) {
-    Row(
+    var currentPath by remember { mutableStateOf(projectPath) }
+    var expandedPaths by remember { mutableStateOf(setOf<String>()) }
+    val files by remember(currentPath) {
+        derivedStateOf {
+            currentPath?.let { File(it) }
+                ?.takeIf { it.exists() && it.isDirectory }
+                ?.let { FileUtils.listFiles(it) }
+                ?: emptyList()
+        }
+    }
+
+    Column(
         modifier = Modifier
-            .width(300.dp)
+            .width(280.dp)
             .fillMaxHeight()
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        NavigationRail(
-            modifier = Modifier.fillMaxHeight()
-        ) {
-            tabs.forEachIndexed { index, tab ->
-                NavigationRailItem(
-                    selected = selectedTabIndex == index,
-                    onClick = { onTabSelected(index) },
-                    icon = {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.title
-                        )
-                    },
-                    label = { Text(tab.title) }
-                )
-            }
-        }
-
-        Column(
+        Row(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
+                .fillMaxWidth()
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            when (selectedTabIndex) {
-                0 -> ExplorerScreen(
-                    onFileClick = onFileClick
-                )
-                1 -> SearchPanel()
-                2 -> GitPanel()
-                3 -> DebugPanel()
+            Text(
+                "EXPLORER",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Row {
+                IconButton(onClick = onNewFile, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Add, "New File", modifier = Modifier.size(16.dp))
+                }
+                IconButton(onClick = onNewFolder, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.CreateNewFolder, "New Folder", modifier = Modifier.size(16.dp))
+                }
             }
         }
-    }
-}
 
-@Composable
-private fun SearchPanel() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Search",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Search in files...",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
-@Composable
-private fun GitPanel() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Source Control",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "No repository detected",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { 
+                            currentPath?.let { File(it).parentFile?.absolutePath?.let { currentPath = it } }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        contentDescription = "Up",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "..",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
-@Composable
-private fun DebugPanel() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Debug",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "No active debug session",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun BottomPanel(
-    currentTab: BottomPanelTab,
-    onTabSelected: (BottomPanelTab) -> Unit,
-    onClose: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(250.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        TabRow(
-            selectedTabIndex = BottomPanelTab.entries.indexOf(currentTab),
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            BottomPanelTab.entries.forEach { tab ->
-                Tab(
-                    selected = currentTab == tab,
-                    onClick = { onTabSelected(tab) },
-                    text = { Text(tab.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                    icon = {
-                        when (tab) {
-                            BottomPanelTab.TERMINAL -> Icon(Icons.Default.Terminal, null)
-                            BottomPanelTab.OUTPUT -> Icon(Icons.Default.Description, null)
-                            BottomPanelTab.PROBLEMS -> Icon(Icons.Default.Warning, null)
-                            BottomPanelTab.DEBUG -> Icon(Icons.Default.Build, null)
+            items(files, key = { it.absolutePath }) { file ->
+                FileTreeItem(
+                    file = file,
+                    isExpanded = file.absolutePath in expandedPaths,
+                    onClick = {
+                        if (file.isDirectory) {
+                            expandedPaths = if (file.absolutePath in expandedPaths) {
+                                expandedPaths - file.absolutePath
+                            } else {
+                                expandedPaths + file.absolutePath
+                            }
+                        } else {
+                            onFileClick(file.absolutePath)
+                        }
+                    },
+                    onDoubleClick = {
+                        if (file.isDirectory) {
+                            currentPath = file.absolutePath
                         }
                     }
                 )
             }
         }
+    }
+}
 
-        Box(
+@Composable
+private fun FileTreeItem(
+    file: File,
+    isExpanded: Boolean,
+    onClick: () -> Unit,
+    onDoubleClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 12.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (file.isDirectory) {
+            Icon(
+                if (isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        } else {
+            Icon(
+                Icons.Outlined.Description,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            file.name,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+private fun EditorPanel(
+    file: File,
+    onSaved: () -> Unit,
+    onModified: () -> Unit
+) {
+    var editorView by remember { mutableStateOf<CodeEditorView?>(null) }
+    val context = LocalContext.current
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Description,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(file.name, style = MaterialTheme.typography.bodyMedium)
+                }
+                Row {
+                    IconButton(
+                        onClick = {
+                            editorView?.undo()
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Undo, "Undo", modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(
+                        onClick = {
+                            editorView?.redo()
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Redo, "Redo", modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(
+                        onClick = {
+                            if (editorView?.save() == true) {
+                                onSaved()
+                                Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Save, "Save", modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+
+        AndroidView(
+            factory = { ctx ->
+                CodeEditorView(ctx).apply {
+                    openFile(file)
+                    onContentChanged = { onModified() }
+                    editorView = this
+                }
+            },
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
+                .fillMaxWidth(),
+            update = { view ->
+                if (view.getCurrentFile()?.absolutePath != file.absolutePath) {
+                    view.openFile(file)
+                }
+            }
+        )
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceVariant
         ) {
-            when (currentTab) {
-                BottomPanelTab.TERMINAL -> TerminalPanel()
-                BottomPanelTab.OUTPUT -> OutputPanel()
-                BottomPanelTab.PROBLEMS -> ProblemsPanel()
-                BottomPanelTab.DEBUG -> DebugOutputPanel()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    LanguageManager.getLanguageName(file.extension),
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    FileUtils.formatFileSize(file.length()),
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    FileUtils.formatDate(file.lastModified()),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+    }
+
+    DisposableEffect(file) {
+        onDispose { editorView?.release() }
+    }
+}
+
+@Composable
+private fun TerminalPanel(onClose: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Terminal, null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Terminal", style = MaterialTheme.typography.labelLarge)
+            }
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Close, "Close")
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "Terminal ready - coming soon",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyState(onOpenFile: () -> Unit, onNewFile: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                Icons.Default.Code,
+                contentDescription = null,
+                modifier = Modifier.size(80.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+            )
+            Text(
+                "Welcome to Koder IDE",
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Text(
+                "Open a file or create a new one to get started",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onOpenFile) {
+                    Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Open File")
+                }
+                OutlinedButton(onClick = onNewFile) {
+                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("New File")
+                }
             }
         }
     }
 }
 
 @Composable
-private fun OutputPanel() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(8.dp)
-    ) {
-        Text(
-            text = "Output will appear here...",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
+private fun NewFileDialog(
+    projectPath: String?,
+    isFolder: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
 
-@Composable
-private fun ProblemsPanel() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(8.dp)
-    ) {
-        Text(
-            text = "No problems detected",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { 
+            Icon(if (isFolder) Icons.Default.CreateNewFolder else Icons.Default.Add, null)
+        },
+        title = { Text(if (isFolder) "New Folder" else "New File") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(if (isFolder) "Folder name" else "File name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(name) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Create")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
-
-@Composable
-private fun DebugOutputPanel() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(8.dp)
-    ) {
-        Text(
-            text = "Debug output will appear here...",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-data class SidebarTab(
-    val title: String,
-    val icon: ImageVector
-)

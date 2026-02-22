@@ -62,16 +62,6 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
-        <service
-            android:name=".core.service.TerminalService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <service
-            android:name=".core.service.BuildService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

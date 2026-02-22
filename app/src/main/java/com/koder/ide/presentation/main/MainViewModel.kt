@@ -1,108 +1,150 @@
 package com.koder.ide.presentation.main
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.koder.ide.domain.model.ThemeMode
-import com.koder.ide.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
 
+data class EditorTab(
+    val path: String,
+    val name: String,
+    var isModified: Boolean = false
+)
+
+data class MainState(
+    val projectPath: String? = null,
+    val tabs: List<EditorTab> = emptyList(),
+    val currentTabIndex: Int = -1,
+    val isSidebarOpen: Boolean = true,
+    val isTerminalOpen: Boolean = false,
+    val sidebarWidth: Int = 280,
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
+
 @HiltViewModel
-class MainViewModel @Inject constructor(
-    private val settingsRepository: SettingsRepository
-) : ViewModel() {
+class MainViewModel @Inject constructor() : ViewModel() {
 
-    val themeMode: StateFlow<ThemeMode> = settingsRepository.getThemeMode()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemeMode.SYSTEM)
+    private val _state = MutableStateFlow(MainState())
+    val state: StateFlow<MainState> = _state.asStateFlow()
 
-    private val _uiState = MutableStateFlow(MainUiState())
-    val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
-
-    private val _currentFilePath = MutableStateFlow<String?>(null)
-    val currentFilePath: StateFlow<String?> = _currentFilePath.asStateFlow()
-
-    fun openFileFromUri(uri: Uri) {
+    fun loadProject(path: String? = null) {
         viewModelScope.launch {
-            _currentFilePath.value = uri.path
-        }
-    }
-
-    fun createNewFile() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(showNewFileDialog = true)
-        }
-    }
-
-    fun showFilePicker() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(showFilePicker = true)
-        }
-    }
-
-    fun openTerminal() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(showTerminal = true)
-        }
-    }
-
-    fun hideDialogs() {
-        _uiState.value = _uiState.value.copy(
-            showNewFileDialog = false,
-            showFilePicker = false
-        )
-    }
-
-    fun openProject(path: String) {
-        viewModelScope.launch {
-            _currentFilePath.value = path
+            _state.value = _state.value.copy(
+                projectPath = path ?: android.os.Environment.getExternalStorageDirectory().absolutePath,
+                isLoading = false
+            )
         }
     }
 
     fun openFile(path: String) {
         viewModelScope.launch {
-            _currentFilePath.value = path
+            val exists = withContext(Dispatchers.IO) {
+                path.isNotBlank() && File(path).exists()
+            }
+            
+            if (exists) {
+                val file = File(path)
+                val tabs = _state.value.tabs
+                val existingIndex = tabs.indexOfFirst { it.path == path }
+                
+                if (existingIndex >= 0) {
+                    _state.value = _state.value.copy(currentTabIndex = existingIndex)
+                } else {
+                    val newTab = EditorTab(path = path, name = file.name)
+                    _state.value = _state.value.copy(
+                        tabs = tabs + newTab,
+                        currentTabIndex = tabs.size
+                    )
+                }
+            }
         }
     }
 
+    fun openFileFromUri(uri: Uri, context: Context) {
+        viewModelScope.launch {
+            val path = withContext(Dispatchers.IO) {
+                when (uri.scheme) {
+                    "file" -> uri.path
+                    "content" -> {
+                        val cursor = context.contentResolver.query(uri, null, null, null, null)
+                        cursor?.use {
+                            if (it.moveToFirst()) {
+                                val nameIndex = it.getColumnIndex("_display_name")
+                                if (nameIndex >= 0) {
+                                    val name = it.getString(nameIndex)
+                                    File(context.cacheDir, name).apply {
+                                        context.contentResolver.openInputStream(uri)?.use { input ->
+                                            outputStream().use { output ->
+                                                input.copyTo(output)
+                                            }
+                                        }
+                                    }.absolutePath
+                                } else null
+                            } else null
+                        }
+                    }
+                    else -> uri.path
+                }
+            }
+            path?.let { openFile(it) }
+        }
+    }
+
+    fun closeTab(index: Int) {
+        val tabs = _state.value.tabs.toMutableList()
+        if (index in tabs.indices) {
+            tabs.removeAt(index)
+            val currentIndex = _state.value.currentTabIndex
+            val newIndex = when {
+                tabs.isEmpty() -> -1
+                currentIndex >= tabs.size -> tabs.size - 1
+                currentIndex == index -> (currentIndex - 1).coerceAtLeast(0)
+                else -> currentIndex
+            }
+            _state.value = _state.value.copy(tabs = tabs, currentTabIndex = newIndex)
+        }
+    }
+
+    fun closeTab(path: String) {
+        val index = _state.value.tabs.indexOfFirst { it.path == path }
+        if (index >= 0) closeTab(index)
+    }
+
+    fun setCurrentTab(index: Int) {
+        if (index in _state.value.tabs.indices) {
+            _state.value = _state.value.copy(currentTabIndex = index)
+        }
+    }
+
+    fun updateTabModified(path: String, modified: Boolean) {
+        val tabs = _state.value.tabs.map { tab ->
+            if (tab.path == path) tab.copy(isModified = modified) else tab
+        }
+        _state.value = _state.value.copy(tabs = tabs)
+    }
+
     fun toggleSidebar() {
-        _uiState.value = _uiState.value.copy(
-            isSidebarOpen = !_uiState.value.isSidebarOpen
-        )
+        _state.value = _state.value.copy(isSidebarOpen = !_state.value.isSidebarOpen)
     }
 
-    fun toggleBottomPanel() {
-        _uiState.value = _uiState.value.copy(
-            isBottomPanelOpen = !_uiState.value.isBottomPanelOpen
-        )
+    fun toggleTerminal() {
+        _state.value = _state.value.copy(isTerminalOpen = !_state.value.isTerminalOpen)
     }
 
-    fun setBottomPanelTab(tab: BottomPanelTab) {
-        _uiState.value = _uiState.value.copy(
-            bottomPanelTab = tab,
-            isBottomPanelOpen = true
-        )
+    fun getCurrentFile(): File? {
+        val state = _state.value
+        return if (state.currentTabIndex >= 0 && state.currentTabIndex < state.tabs.size) {
+            File(state.tabs[state.currentTabIndex].path).takeIf { it.exists() }
+        } else null
     }
-}
-
-data class MainUiState(
-    val showNewFileDialog: Boolean = false,
-    val showFilePicker: Boolean = false,
-    val showTerminal: Boolean = false,
-    val isSidebarOpen: Boolean = true,
-    val isBottomPanelOpen: Boolean = false,
-    val bottomPanelTab: BottomPanelTab = BottomPanelTab.TERMINAL
-)
-
-enum class BottomPanelTab {
-    TERMINAL,
-    OUTPUT,
-    PROBLEMS,
-    DEBUG
 }

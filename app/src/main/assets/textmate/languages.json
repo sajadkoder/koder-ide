@@ -1,0 +1,79 @@
+{
+  "languages": [
+    {
+      "name": "java",
+      "scopeName": "source.java",
+      "grammar": "textmate/syntaxes/java.tmLanguage.json"
+    },
+    {
+      "name": "kotlin",
+      "scopeName": "source.kotlin",
+      "grammar": "textmate/syntaxes/kotlin.tmLanguage"
+    },
+    {
+      "name": "python",
+      "scopeName": "source.python",
+      "grammar": "textmate/syntaxes/python.tmLanguage.json"
+    },
+    {
+      "name": "javascript",
+      "scopeName": "source.js",
+      "grammar": "textmate/syntaxes/javascript.tmLanguage.json"
+    },
+    {
+      "name": "typescript",
+      "scopeName": "source.ts",
+      "grammar": "textmate/syntaxes/typescript.tmLanguage.json"
+    },
+    {
+      "name": "json",
+      "scopeName": "source.json",
+      "grammar": "textmate/syntaxes/json.tmLanguage.json"
+    },
+    {
+      "name": "xml",
+      "scopeName": "text.xml",
+      "grammar": "textmate/syntaxes/xml.tmLanguage.json"
+    },
+    {
+      "name": "html",
+      "scopeName": "text.html.basic",
+      "grammar": "textmate/syntaxes/html.tmLanguage.json"
+    },
+    {
+      "name": "css",
+      "scopeName": "source.css",
+      "grammar": "textmate/syntaxes/css.tmLanguage.json"
+    },
+    {
+      "name": "markdown",
+      "scopeName": "text.html.markdown",
+      "grammar": "textmate/syntaxes/markdown.tmLanguage.json"
+    },
+    {
+      "name": "c",
+      "scopeName": "source.c",
+      "grammar": "textmate/syntaxes/c.tmLanguage.json"
+    },
+    {
+      "name": "cpp",
+      "scopeName": "source.cpp",
+      "grammar": "textmate/syntaxes/cpp.tmLanguage.json"
+    },
+    {
+      "name": "yaml",
+      "scopeName": "source.yaml",
+      "grammar": "textmate/syntaxes/yaml.tmLanguage.json"
+    },
+    {
+      "name": "shell",
+      "scopeName": "source.shell",
+      "grammar": "textmate/syntaxes/shell.tmLanguage.json"
+    },
+    {
+      "name": "sql",
+      "scopeName": "source.sql",
+      "grammar": "textmate/syntaxes/sql.tmLanguage.json"
+    }
+  ]
+}
