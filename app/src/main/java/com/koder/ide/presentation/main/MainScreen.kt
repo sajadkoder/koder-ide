@@ -9,6 +9,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -16,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -220,13 +223,18 @@ fun MainScreen(
                     }
                 }
                 
-                // Terminal (placeholder)
+                // Terminal
                 AnimatedVisibility(
                     visible = uiState.isTerminalOpen,
                     enter = slideInVertically { it },
                     exit = slideOutVertically { it }
                 ) {
-                    TerminalPane()
+                    TerminalPane(
+                        output = uiState.terminalOutput,
+                        onExecute = { viewModel.executeCommand(it) },
+                        onClear = { viewModel.clearTerminal() },
+                        onClose = { viewModel.toggleTerminal() }
+                    )
                 }
             }
         }
@@ -529,11 +537,18 @@ private fun GitPanel(
 }
 
 @Composable
-private fun TerminalPane() {
+private fun TerminalPane(
+    output: List<String>,
+    onExecute: (String) -> Unit,
+    onClear: () -> Unit,
+    onClose: () -> Unit
+) {
+    var command by remember { mutableStateOf("") }
+    
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
+            .height(250.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
@@ -548,24 +563,68 @@ private fun TerminalPane() {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Terminal", style = MaterialTheme.typography.labelMedium)
             }
-            IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Close, "Close", modifier = Modifier.size(18.dp))
+            Row {
+                IconButton(onClick = onClear, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.ClearAll, "Clear", modifier = Modifier.size(18.dp))
+                }
+                IconButton(onClick = onClose, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Close, "Close", modifier = Modifier.size(18.dp))
+                }
             }
         }
+        
+        // Terminal output
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            contentAlignment = Alignment.Center
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Terminal", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    "Install Termux for full terminal functionality",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                output.forEach { line ->
+                    Text(
+                        text = line,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = if (line.startsWith("Error")) 
+                            MaterialTheme.colorScheme.error 
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
+        }
+        
+        // Command input
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "\$ ",
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary
+            )
+            OutlinedTextField(
+                value = command,
+                onValueChange = { command = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Enter command...") },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                trailingIcon = {
+                    IconButton(onClick = {
+                        if (command.isNotBlank()) {
+                            onExecute(command)
+                            command = ""
+                        }
+                    }) {
+                        Icon(Icons.Default.Send, "Execute")
+                    }
+                }
+            )
         }
     }
 }

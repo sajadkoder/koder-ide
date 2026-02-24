@@ -7,6 +7,7 @@ import com.koder.ide.domain.model.GitStatus
 import com.koder.ide.domain.model.ProjectFile
 import com.koder.ide.domain.repository.FileRepository
 import com.koder.ide.domain.repository.GitRepository
+import com.koder.ide.domain.repository.TerminalRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,8 @@ data class MainUiState(
     val isTerminalOpen: Boolean = false,
     val isGitPanelOpen: Boolean = false,
     val gitStatus: GitStatus? = null,
+    val terminalOutput: List<String> = emptyList(),
+    val isTerminalRunning: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
     val message: String? = null
@@ -33,7 +36,8 @@ data class MainUiState(
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val fileRepository: FileRepository,
-    private val gitRepository: GitRepository
+    private val gitRepository: GitRepository,
+    private val terminalRepository: TerminalRepository
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(MainUiState())
@@ -191,7 +195,58 @@ class MainViewModel @Inject constructor(
     }
     
     fun toggleTerminal() {
-        _uiState.value = _uiState.value.copy(isTerminalOpen = !_uiState.value.isTerminalOpen)
+        val newState = !_uiState.value.isTerminalOpen
+        _uiState.value = _uiState.value.copy(isTerminalOpen = newState)
+        
+        if (newState && !_uiState.value.isTerminalRunning) {
+            startTerminal()
+        }
+    }
+    
+    private fun startTerminal() {
+        viewModelScope.launch {
+            val started = terminalRepository.startSession()
+            if (started) {
+                _uiState.value = _uiState.value.copy(
+                    isTerminalRunning = true,
+                    terminalOutput = listOf("Koder Terminal v1.0", "Type 'exit' to close", "")
+                )
+            }
+        }
+    }
+    
+    fun executeCommand(command: String) {
+        viewModelScope.launch {
+            val currentOutput = _uiState.value.terminalOutput
+            val newOutput = currentOutput + listOf("\$$command")
+            
+            if (command == "exit") {
+                terminalRepository.stopSession()
+                _uiState.value = _uiState.value.copy(
+                    terminalOutput = newOutput + listOf("Session closed"),
+                    isTerminalRunning = false
+                )
+                return@launch
+            }
+            
+            if (command == "clear") {
+                _uiState.value = _uiState.value.copy(terminalOutput = listOf(""))
+                return@launch
+            }
+            
+            val result = terminalRepository.execute(command)
+            val output = if (result.isError) {
+                newOutput + result.text.lines()
+            } else {
+                newOutput + result.text.lines()
+            }
+            
+            _uiState.value = _uiState.value.copy(terminalOutput = output)
+        }
+    }
+    
+    fun clearTerminal() {
+        _uiState.value = _uiState.value.copy(terminalOutput = listOf(""))
     }
     
     fun toggleGitPanel() {
@@ -294,5 +349,12 @@ class MainViewModel @Inject constructor(
     
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(message = null, error = null)
+    }
+    
+    override fun onCleared() {
+        super.onCleared()
+        viewModelScope.launch {
+            terminalRepository.stopSession()
+        }
     }
 }
