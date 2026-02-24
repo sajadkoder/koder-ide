@@ -8,103 +8,121 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.koder.ide.core.editor.CodeEditorView
-import com.koder.ide.core.editor.LanguageManager
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.koder.ide.core.editor.EditorHelper
 import com.koder.ide.core.util.FileUtils
+import com.koder.ide.domain.model.EditorTab
+import com.koder.ide.domain.model.ProjectFile
 import com.koder.ide.presentation.theme.KoderTheme
+import io.github.rosemoe.sora.widget.CodeEditor
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    viewModel: MainViewModel = viewModel()
+    viewModel: MainViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     
     var showNewFileDialog by remember { mutableStateOf(false) }
     var showNewFolderDialog by remember { mutableStateOf(false) }
+    var showGitCommitDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        uri?.let { viewModel.openFileFromUri(it, context) }
+    LaunchedEffect(uiState.message, uiState.error) {
+        uiState.message?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearMessage()
+        }
+        uiState.error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.clearMessage()
+        }
     }
-
+    
     KoderTheme {
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Code,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("Koder IDE", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "Koder IDE",
-                                style = MaterialTheme.typography.titleLarge
+                                uiState.currentPath.takeLast(40),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     },
                     navigationIcon = {
                         IconButton(onClick = { viewModel.toggleSidebar() }) {
-                            Icon(Icons.Default.Menu, "Toggle sidebar")
+                            Icon(Icons.Default.Menu, "Toggle")
                         }
                     },
                     actions = {
-                        IconButton(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
-                            Icon(Icons.Default.FolderOpen, "Open file")
-                        }
-                        IconButton(onClick = { showNewFileDialog = true }) {
-                            Icon(Icons.Default.Add, "New file")
+                        if (uiState.gitStatus != null) {
+                            IconButton(onClick = { viewModel.toggleGitPanel() }) {
+                                Icon(
+                                    Icons.Default.Cloud,
+                                    "Git",
+                                    tint = if (uiState.gitStatus?.isRepository == true) 
+                                        MaterialTheme.colorScheme.primary 
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                         IconButton(onClick = { viewModel.toggleTerminal() }) {
                             Icon(Icons.Default.Terminal, "Terminal")
                         }
                         Box {
                             IconButton(onClick = { showMenu = true }) {
-                                Icon(Icons.Default.MoreVert, "More")
+                                Icon(Icons.Default.MoreVert, "Menu")
                             }
-                            DropdownMenu(
-                                expanded = showMenu,
-                                onDismissRequest = { showMenu = false }
-                            ) {
+                            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                                 DropdownMenuItem(
-                                    text = { Text("Close All Tabs") },
-                                    onClick = {
-                                        showMenu = false
-                                        state.tabs.forEach { viewModel.closeTab(it.path) }
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.Close, null) }
+                                    text = { Text("New File") },
+                                    onClick = { showMenu = false; showNewFileDialog = true },
+                                    leadingIcon = { Icon(Icons.Default.Add, null) }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Settings") },
-                                    onClick = { showMenu = false },
-                                    leadingIcon = { Icon(Icons.Default.Settings, null) }
+                                    text = { Text("New Folder") },
+                                    onClick = { showMenu = false; showNewFolderDialog = true },
+                                    leadingIcon = { Icon(Icons.Default.CreateNewFolder, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Refresh") },
+                                    onClick = { showMenu = false; viewModel.navigateTo(uiState.currentPath) },
+                                    leadingIcon = { Icon(Icons.Default.Refresh, null) }
+                                )
+                                HorizontalDivider()
+                                if (uiState.gitStatus?.isRepository != true) {
+                                    DropdownMenuItem(
+                                        text = { Text("Git Init") },
+                                        onClick = { showMenu = false; viewModel.gitInit() },
+                                        leadingIcon = { Icon(Icons.Default.Cloud, null) }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("Close All Tabs") },
+                                    onClick = { 
+                                        showMenu = false
+                                        uiState.tabs.forEachIndexed { index, _ -> viewModel.closeTab(index) }
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Close, null) }
                                 )
                             }
                         }
@@ -115,97 +133,133 @@ fun MainScreen(
                 )
             }
         ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                if (state.tabs.isNotEmpty()) {
-                    TabBar(
-                        tabs = state.tabs,
-                        currentIndex = state.currentTabIndex,
-                        onSelect = { viewModel.setCurrentTab(it) },
-                        onClose = { viewModel.closeTab(it) }
-                    )
-                }
-
-                Row(modifier = Modifier.weight(1f)) {
-                    AnimatedVisibility(
-                        visible = state.isSidebarOpen,
-                        enter = slideInHorizontally(initialOffsetX = { -it }),
-                        exit = slideOutHorizontally(targetOffsetX = { -it })
+            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                // Tabs
+                if (uiState.tabs.isNotEmpty()) {
+                    TabRow(
+                        selectedTabIndex = uiState.currentTabIndex,
+                        modifier = Modifier.fillMaxWidth(),
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
                     ) {
-                        FileExplorerSidebar(
-                            projectPath = state.projectPath,
-                            onFileClick = { viewModel.openFile(it) },
-                            onNewFile = { showNewFileDialog = true },
-                            onNewFolder = { showNewFolderDialog = true }
-                        )
-                    }
-
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                        val currentFile = state.tabs.getOrNull(state.currentTabIndex)?.let { File(it.path) }
-                        
-                        if (currentFile != null && currentFile.exists()) {
-                            EditorPanel(
-                                file = currentFile,
-                                onSaved = { viewModel.updateTabModified(currentFile.absolutePath, false) },
-                                onModified = { viewModel.updateTabModified(currentFile.absolutePath, true) }
-                            )
-                        } else {
-                            EmptyState(
-                                onOpenFile = { filePickerLauncher.launch(arrayOf("*/*")) },
-                                onNewFile = { showNewFileDialog = true }
+                        uiState.tabs.forEachIndexed { index, tab ->
+                            Tab(
+                                selected = index == uiState.currentTabIndex,
+                                onClick = { viewModel.selectTab(index) },
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            tab.file.name,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        if (tab.isModified) {
+                                            Text(" ●", color = MaterialTheme.colorScheme.primary)
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Close",
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .clickable { viewModel.closeTab(index) }
+                                        )
+                                    }
+                                }
                             )
                         }
                     }
                 }
-
+                
+                Row(modifier = Modifier.weight(1f)) {
+                    // Sidebar - File Explorer
+                    AnimatedVisibility(
+                        visible = uiState.isSidebarOpen,
+                        enter = slideInHorizontally { -it },
+                        exit = slideOutHorizontally { -it }
+                    ) {
+                        FileExplorer(
+                            currentPath = uiState.currentPath,
+                            files = uiState.files,
+                            onNavigate = { viewModel.navigateTo(it) },
+                            onOpenFile = { viewModel.openFile(it) },
+                            onNavigateUp = { viewModel.navigateUp() }
+                        )
+                    }
+                    
+                    // Main Content Area
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (uiState.currentTabIndex >= 0) {
+                            val currentTab = uiState.tabs.getOrNull(uiState.currentTabIndex)
+                            if (currentTab != null) {
+                                EditorPane(
+                                    tab = currentTab,
+                                    onContentChange = { viewModel.updateTabContent(currentTab.id, it) },
+                                    onSave = { viewModel.saveCurrentTab() }
+                                )
+                            }
+                        } else if (uiState.isLoading) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        } else {
+                            EmptyState()
+                        }
+                    }
+                    
+                    // Git Panel
+                    if (uiState.isGitPanelOpen) {
+                        GitPanel(
+                            gitStatus = uiState.gitStatus,
+                            onAdd = { viewModel.gitAdd() },
+                            onCommit = { showGitCommitDialog = true },
+                            onPush = { viewModel.gitPush() },
+                            onPull = { viewModel.gitPull() },
+                            onRefresh = { viewModel.refreshGitStatus() }
+                        )
+                    }
+                }
+                
+                // Terminal (placeholder)
                 AnimatedVisibility(
-                    visible = state.isTerminalOpen,
-                    enter = slideInVertically(initialOffsetY = { it }),
-                    exit = slideOutVertically(targetOffsetY = { it })
+                    visible = uiState.isTerminalOpen,
+                    enter = slideInVertically { it },
+                    exit = slideOutVertically { it }
                 ) {
-                    TerminalPanel(onClose = { viewModel.toggleTerminal() })
+                    TerminalPane()
                 }
             }
         }
-
+        
+        // Dialogs
         if (showNewFileDialog) {
-            NewFileDialog(
-                projectPath = state.projectPath,
-                isFolder = false,
+            NewItemDialog(
+                title = "New File",
                 onDismiss = { showNewFileDialog = false },
                 onConfirm = { name ->
-                    state.projectPath?.let { path ->
-                        val file = FileUtils.createFile(File(path), name)
-                        if (file != null) {
-                            viewModel.openFile(file.absolutePath)
-                            Toast.makeText(context, "Created: $name", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Failed to create file", Toast.LENGTH_SHORT).show()
-                        }
-                    }
+                    viewModel.createFile(name, false)
                     showNewFileDialog = false
                 }
             )
         }
-
+        
         if (showNewFolderDialog) {
-            NewFileDialog(
-                projectPath = state.projectPath,
-                isFolder = true,
+            NewItemDialog(
+                title = "New Folder",
                 onDismiss = { showNewFolderDialog = false },
                 onConfirm = { name ->
-                    state.projectPath?.let { path ->
-                        val folder = FileUtils.createDirectory(File(path), name)
-                        if (folder != null) {
-                            Toast.makeText(context, "Created folder: $name", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Failed to create folder", Toast.LENGTH_SHORT).show()
-                        }
-                    }
+                    viewModel.createFile(name, true)
                     showNewFolderDialog = false
+                }
+            )
+        }
+        
+        if (showGitCommitDialog) {
+            GitCommitDialog(
+                onDismiss = { showGitCommitDialog = false },
+                onCommit = { message ->
+                    viewModel.gitCommit(message)
+                    showGitCommitDialog = false
                 }
             )
         }
@@ -213,77 +267,13 @@ fun MainScreen(
 }
 
 @Composable
-private fun TabBar(
-    tabs: List<EditorTab>,
-    currentIndex: Int,
-    onSelect: (Int) -> Unit,
-    onClose: (String) -> Unit
+private fun FileExplorer(
+    currentPath: String,
+    files: List<ProjectFile>,
+    onNavigate: (String) -> Unit,
+    onOpenFile: (String) -> Unit,
+    onNavigateUp: () -> Unit
 ) {
-    LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        itemsIndexed(tabs, key = { _, it -> it.path }) { index, tab ->
-            val isSelected = index == currentIndex
-            Surface(
-                modifier = Modifier.clickable { onSelect(index) },
-                color = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant,
-                tonalElevation = if (isSelected) 2.dp else 0.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = tab.name,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.widthIn(max = 120.dp)
-                    )
-                    if (tab.isModified) {
-                        Text(
-                            text = " •",
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = { onClose(tab.path) },
-                        modifier = Modifier.size(20.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Close",
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FileExplorerSidebar(
-    projectPath: String?,
-    onFileClick: (String) -> Unit,
-    onNewFile: () -> Unit,
-    onNewFolder: () -> Unit
-) {
-    var currentPath by remember { mutableStateOf(projectPath) }
-    var expandedPaths by remember { mutableStateOf(setOf<String>()) }
-    val files by remember(currentPath) {
-        derivedStateOf {
-            currentPath?.let { File(it) }
-                ?.takeIf { it.exists() && it.isDirectory }
-                ?.let { FileUtils.listFiles(it) }
-                ?: emptyList()
-        }
-    }
-
     Column(
         modifier = Modifier
             .width(280.dp)
@@ -293,71 +283,48 @@ private fun FileExplorerSidebar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 "EXPLORER",
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary
             )
-            Row {
-                IconButton(onClick = onNewFile, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Add, "New File", modifier = Modifier.size(16.dp))
-                }
-                IconButton(onClick = onNewFolder, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.CreateNewFolder, "New Folder", modifier = Modifier.size(16.dp))
-                }
+            IconButton(onClick = onNavigateUp, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.ArrowUpward, "Up", modifier = Modifier.size(18.dp))
             }
         }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-
+        
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { 
-                            currentPath?.let { File(it).parentFile?.absolutePath?.let { currentPath = it } }
-                        }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .clickable { onNavigateUp() }
+                        .padding(12.dp, 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         Icons.Default.ArrowBack,
-                        contentDescription = "Up",
-                        modifier = Modifier.size(16.dp),
+                        null,
+                        modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "..",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("..", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-
-            items(files, key = { it.absolutePath }) { file ->
-                FileTreeItem(
+            
+            items(files) { file ->
+                FileItem(
                     file = file,
-                    isExpanded = file.absolutePath in expandedPaths,
                     onClick = {
                         if (file.isDirectory) {
-                            expandedPaths = if (file.absolutePath in expandedPaths) {
-                                expandedPaths - file.absolutePath
-                            } else {
-                                expandedPaths + file.absolutePath
-                            }
+                            onNavigate(file.path)
                         } else {
-                            onFileClick(file.absolutePath)
-                        }
-                    },
-                    onDoubleClick = {
-                        if (file.isDirectory) {
-                            currentPath = file.absolutePath
+                            onOpenFile(file.path)
                         }
                     }
                 )
@@ -367,157 +334,202 @@ private fun FileExplorerSidebar(
 }
 
 @Composable
-private fun FileTreeItem(
-    file: File,
-    isExpanded: Boolean,
-    onClick: () -> Unit,
-    onDoubleClick: () -> Unit
-) {
+private fun FileItem(file: ProjectFile, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(start = 12.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (file.isDirectory) {
-            Icon(
-                if (isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-        } else {
-            Icon(
-                Icons.Outlined.Description,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            file.name,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.bodyMedium
+        Icon(
+            if (file.isDirectory) Icons.Default.Folder else Icons.Default.Description,
+            null,
+            modifier = Modifier.size(20.dp),
+            tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                file.name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (!file.isDirectory) {
+                Text(
+                    FileUtils.formatFileSize(file.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun EditorPanel(
-    file: File,
-    onSaved: () -> Unit,
-    onModified: () -> Unit
+private fun EditorPane(
+    tab: EditorTab,
+    onContentChange: (String) -> Unit,
+    onSave: () -> Unit
 ) {
-    var editorView by remember { mutableStateOf<CodeEditorView?>(null) }
+    var editor by remember { mutableStateOf<CodeEditor?>(null) }
     val context = LocalContext.current
-
+    
     Column(modifier = Modifier.fillMaxSize()) {
+        // Editor Toolbar
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surfaceVariant
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Description,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                    Text(
+                        FileUtils.getLanguageFromExtension(tab.file.extension),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(file.name, style = MaterialTheme.typography.bodyMedium)
                 }
                 Row {
-                    IconButton(
-                        onClick = {
-                            editorView?.undo()
-                        },
-                        modifier = Modifier.size(32.dp)
-                    ) {
+                    IconButton(onClick = { editor?.undo() }, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.Undo, "Undo", modifier = Modifier.size(18.dp))
                     }
-                    IconButton(
-                        onClick = {
-                            editorView?.redo()
-                        },
-                        modifier = Modifier.size(32.dp)
-                    ) {
+                    IconButton(onClick = { editor?.redo() }, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.Redo, "Redo", modifier = Modifier.size(18.dp))
                     }
-                    IconButton(
-                        onClick = {
-                            if (editorView?.save() == true) {
-                                onSaved()
-                                Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.size(32.dp)
-                    ) {
+                    IconButton(onClick = onSave, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.Save, "Save", modifier = Modifier.size(18.dp))
                     }
                 }
             }
         }
-
+        
+        // Editor
         AndroidView(
             factory = { ctx ->
-                CodeEditorView(ctx).apply {
-                    openFile(file)
-                    onContentChanged = { onModified() }
-                    editorView = this
+                CodeEditor(ctx).apply {
+                    EditorHelper.configure(this)
+                    EditorHelper.setLanguage(this, tab.file.extension)
+                    setText(tab.content)
+                    subscribeEvent(io.github.rosemoe.sora.event.ContentChangeEvent::class.java) { _, _ ->
+                        onContentChange(text.toString())
+                    }
+                    editor = this
                 }
             },
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
             update = { view ->
-                if (view.getCurrentFile()?.absolutePath != file.absolutePath) {
-                    view.openFile(file)
+                if (view.text.toString() != tab.content && !tab.isModified) {
+                    view.setText(tab.content)
                 }
             }
         )
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    LanguageManager.getLanguageName(file.extension),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                Text(
-                    FileUtils.formatFileSize(file.length()),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                Text(
-                    FileUtils.formatDate(file.lastModified()),
-                    style = MaterialTheme.typography.labelSmall
-                )
-            }
-        }
-    }
-
-    DisposableEffect(file) {
-        onDispose { editorView?.release() }
     }
 }
 
 @Composable
-private fun TerminalPanel(onClose: () -> Unit) {
+private fun GitPanel(
+    gitStatus: com.koder.ide.domain.model.GitStatus?,
+    onAdd: () -> Unit,
+    onCommit: () -> Unit,
+    onPush: () -> Unit,
+    onPull: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .width(300.dp)
+            .fillMaxHeight(),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("GIT", style = MaterialTheme.typography.labelMedium)
+                IconButton(onClick = onRefresh, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Refresh, "Refresh", modifier = Modifier.size(18.dp))
+                }
+            }
+            
+            gitStatus?.let { status ->
+                if (status.branch.isNotEmpty()) {
+                    Text(
+                        "Branch: ${status.branch}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                if (status.untrackedFiles.isNotEmpty()) {
+                    Text("Untracked (${status.untrackedFiles.size})", style = MaterialTheme.typography.labelSmall)
+                    status.untrackedFiles.take(3).forEach {
+                        Text("• $it", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                
+                if (status.stagedChanges.isNotEmpty()) {
+                    Text("Staged (${status.stagedChanges.size})", style = MaterialTheme.typography.labelSmall)
+                }
+                
+                if (status.unstagedChanges.isNotEmpty()) {
+                    Text("Modified (${status.unstagedChanges.size})", style = MaterialTheme.typography.labelSmall)
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onAdd,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("Add", style = MaterialTheme.typography.labelSmall)
+                    }
+                    Button(
+                        onClick = onCommit,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("Commit", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onPull,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("Pull", style = MaterialTheme.typography.labelSmall)
+                    }
+                    OutlinedButton(
+                        onClick = onPush,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("Push", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            } ?: Text("Not a git repository", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun TerminalPane() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -534,10 +546,10 @@ private fun TerminalPanel(onClose: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Terminal, null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Terminal", style = MaterialTheme.typography.labelLarge)
+                Text("Terminal", style = MaterialTheme.typography.labelMedium)
             }
-            IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, "Close")
+            IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Close, "Close", modifier = Modifier.size(18.dp))
             }
         }
         Box(
@@ -546,93 +558,89 @@ private fun TerminalPanel(onClose: () -> Unit) {
                 .padding(12.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                "Terminal ready - coming soon",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(onOpenFile: () -> Unit, onNewFile: () -> Unit) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                Icons.Default.Code,
-                contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-            )
-            Text(
-                "Welcome to Koder IDE",
-                style = MaterialTheme.typography.headlineMedium
-            )
-            Text(
-                "Open a file or create a new one to get started",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onOpenFile) {
-                    Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Open File")
-                }
-                OutlinedButton(onClick = onNewFile) {
-                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("New File")
-                }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Terminal", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "Install Termux for full terminal functionality",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 }
 
 @Composable
-private fun NewFileDialog(
-    projectPath: String?,
-    isFolder: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
+private fun EmptyState() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Default.Code,
+                null,
+                modifier = Modifier.size(72.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Open a file to start editing", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "Use the file explorer on the left",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
 
+@Composable
+private fun NewItemDialog(title: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { 
-            Icon(if (isFolder) Icons.Default.CreateNewFolder else Icons.Default.Add, null)
-        },
-        title = { Text(if (isFolder) "New Folder" else "New File") },
+        title = { Text(title) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text(if (isFolder) "Folder name" else "File name") },
+                label = { Text("Name") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
         },
         confirmButton = {
-            Button(
-                onClick = { onConfirm(name) },
-                enabled = name.isNotBlank()
-            ) {
+            Button(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) {
                 Text("Create")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun GitCommitDialog(onDismiss: () -> Unit, onCommit: (String) -> Unit) {
+    var message by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Git Commit") },
+        text = {
+            OutlinedTextField(
+                value = message,
+                onValueChange = { message = it },
+                label = { Text("Commit message") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3
+            )
+        },
+        confirmButton = {
+            Button(onClick = { onCommit(message) }, enabled = message.isNotBlank()) {
+                Text("Commit")
             }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
 }

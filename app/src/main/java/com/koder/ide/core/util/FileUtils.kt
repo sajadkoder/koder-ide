@@ -2,14 +2,10 @@ package com.koder.ide.core.util
 
 import java.io.File
 import java.text.DecimalFormat
-import java.text.SimpleDateFormat
-import java.util.*
 
 object FileUtils {
     
     private val sizeFormat = DecimalFormat("#,##0.#")
-    private val dateFormat = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
-    
     private val sizeUnits = arrayOf("B", "KB", "MB", "GB")
     
     fun formatFileSize(bytes: Long): String {
@@ -23,107 +19,61 @@ object FileUtils {
         return "${sizeFormat.format(size)} ${sizeUnits[unitIndex]}"
     }
     
-    fun formatDate(timestamp: Long): String = dateFormat.format(Date(timestamp))
-    
-    fun getFileExtension(fileName: String): String {
-        val lastDot = fileName.lastIndexOf('.')
-        return if (lastDot > 0) fileName.substring(lastDot + 1) else ""
+    fun getLanguageFromExtension(extension: String): String = when (extension.lowercase()) {
+        "java" -> "Java"
+        "kt", "kts" -> "Kotlin"
+        "py" -> "Python"
+        "js", "mjs" -> "JavaScript"
+        "ts", "tsx" -> "TypeScript"
+        "json" -> "JSON"
+        "xml" -> "XML"
+        "html", "htm" -> "HTML"
+        "css", "scss", "sass" -> "CSS"
+        "md", "markdown" -> "Markdown"
+        "c", "h" -> "C"
+        "cpp", "cc", "cxx", "hpp" -> "C++"
+        "sh", "bash", "zsh" -> "Shell"
+        "yaml", "yml" -> "YAML"
+        "sql" -> "SQL"
+        "go" -> "Go"
+        "rs" -> "Rust"
+        "swift" -> "Swift"
+        "rb" -> "Ruby"
+        "php" -> "PHP"
+        "txt" -> "Plain Text"
+        else -> extension.uppercase().ifEmpty { "Plain Text" }
     }
     
-    fun getFileName(path: String): String {
-        val lastSlash = path.lastIndexOf('/')
-        return if (lastSlash >= 0) path.substring(lastSlash + 1) else path
+    fun getScopeFromExtension(extension: String): String? = when (extension.lowercase()) {
+        "java" -> "source.java"
+        "kt", "kts" -> "source.kotlin"
+        "py" -> "source.python"
+        "js", "mjs" -> "source.js"
+        "ts", "tsx" -> "source.ts"
+        "json" -> "source.json"
+        "xml" -> "text.xml"
+        "html", "htm" -> "text.html.basic"
+        "css", "scss", "sass" -> "source.css"
+        "md", "markdown" -> "text.html.markdown"
+        "c", "h" -> "source.c"
+        "cpp", "cc", "cxx", "hpp" -> "source.cpp"
+        "sh", "bash", "zsh" -> "source.shell"
+        "yaml", "yml" -> "source.yaml"
+        "sql" -> "source.sql"
+        else -> null
     }
     
-    fun getFileIconName(extension: String): String = when (extension.lowercase()) {
-        "java" -> "java"
-        "kt", "kts" -> "kotlin"
-        "py" -> "python"
-        "js" -> "javascript"
-        "ts" -> "typescript"
-        "json" -> "json"
-        "xml" -> "xml"
-        "html", "htm" -> "html"
-        "css" -> "css"
-        "md" -> "markdown"
-        "c", "cpp", "h", "hpp" -> "cpp"
-        "sh" -> "shell"
-        "yaml", "yml" -> "yaml"
-        "sql" -> "database"
-        "txt" -> "text"
-        "png", "jpg", "jpeg", "gif", "webp", "svg" -> "image"
-        "mp3", "wav", "ogg" -> "audio"
-        "mp4", "avi", "mkv" -> "video"
-        "zip", "tar", "gz", "rar", "7z" -> "archive"
-        else -> "file"
-    }
-    
-    fun isTextFile(extension: String): Boolean {
-        return extension.lowercase() in setOf(
-            "java", "kt", "kts", "py", "js", "ts", "jsx", "tsx",
+    fun isTextFile(file: File): Boolean {
+        val textExtensions = setOf(
+            "java", "kt", "kts", "py", "js", "mjs", "ts", "tsx", "jsx",
             "json", "xml", "html", "htm", "css", "scss", "sass", "less",
             "md", "markdown", "txt", "log", "csv",
-            "c", "cpp", "h", "hpp", "cc", "cxx",
+            "c", "h", "cpp", "cc", "cxx", "h", "hpp",
             "sh", "bash", "zsh", "bat", "cmd", "ps1",
             "yaml", "yml", "toml", "ini", "cfg", "conf", "properties",
             "sql", "gradle", "ktm", "swift", "go", "rs", "rb", "php",
-            "vue", "svelte", "astro"
+            "vue", "svelte", "astro", "dart", "lua", "r", "scala"
         )
-    }
-    
-    fun listFiles(directory: File, showHidden: Boolean = false): List<File> {
-        return directory.listFiles()
-            ?.filter { showHidden || !it.name.startsWith(".") }
-            ?.sortedWith(compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase() })
-            ?: emptyList()
-    }
-    
-    fun createFile(parent: File, name: String): File? {
-        return try {
-            File(parent, name).apply { createNewFile() }
-        } catch (e: Exception) {
-            null
-        }
-    }
-    
-    fun createDirectory(parent: File, name: String): File? {
-        return try {
-            File(parent, name).apply { mkdirs() }
-        } catch (e: Exception) {
-            null
-        }
-    }
-    
-    fun deleteRecursively(file: File): Boolean {
-        return if (file.isDirectory) {
-            file.deleteRecursively()
-        } else {
-            file.delete()
-        }
-    }
-    
-    fun copyFile(source: File, dest: File): Boolean {
-        return try {
-            source.copyTo(dest, overwrite = true)
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-    
-    fun moveFile(source: File, dest: File): Boolean {
-        return try {
-            source.renameTo(dest)
-        } catch (e: Exception) {
-            false
-        }
-    }
-    
-    fun renameFile(file: File, newName: String): Boolean {
-        return try {
-            file.renameTo(File(file.parentFile ?: return false, newName))
-        } catch (e: Exception) {
-            false
-        }
+        return file.isFile && file.extension.lowercase() in textExtensions
     }
 }

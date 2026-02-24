@@ -1,150 +1,298 @@
 package com.koder.ide.presentation.main
 
-import android.content.Context
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.koder.ide.domain.model.EditorTab
+import com.koder.ide.domain.model.GitStatus
+import com.koder.ide.domain.model.ProjectFile
+import com.koder.ide.domain.repository.FileRepository
+import com.koder.ide.domain.repository.GitRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.UUID
 import javax.inject.Inject
 
-data class EditorTab(
-    val path: String,
-    val name: String,
-    var isModified: Boolean = false
-)
-
-data class MainState(
-    val projectPath: String? = null,
+data class MainUiState(
+    val currentPath: String = "",
+    val files: List<ProjectFile> = emptyList(),
     val tabs: List<EditorTab> = emptyList(),
     val currentTabIndex: Int = -1,
     val isSidebarOpen: Boolean = true,
     val isTerminalOpen: Boolean = false,
-    val sidebarWidth: Int = 280,
+    val isGitPanelOpen: Boolean = false,
+    val gitStatus: GitStatus? = null,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val message: String? = null
 )
 
 @HiltViewModel
-class MainViewModel @Inject constructor() : ViewModel() {
-
-    private val _state = MutableStateFlow(MainState())
-    val state: StateFlow<MainState> = _state.asStateFlow()
-
-    fun loadProject(path: String? = null) {
+class MainViewModel @Inject constructor(
+    private val fileRepository: FileRepository,
+    private val gitRepository: GitRepository
+) : ViewModel() {
+    
+    private val _uiState = MutableStateFlow(MainUiState())
+    val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
+    
+    init {
+        loadExternalStorage()
+    }
+    
+    fun loadExternalStorage() {
+        val path = fileRepository.getExternalStoragePath()
+        navigateTo(path)
+    }
+    
+    fun navigateTo(path: String) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(
-                projectPath = path ?: android.os.Environment.getExternalStorageDirectory().absolutePath,
-                isLoading = false
-            )
+            _uiState.value = _uiState.value.copy(isLoading = true, currentPath = path)
+            try {
+                val files = fileRepository.getFiles(path)
+                val gitStatus = if (gitRepository.isRepository(path)) {
+                    gitRepository.getStatus(path)
+                } else null
+                
+                _uiState.value = _uiState.value.copy(
+                    files = files,
+                    isLoading = false,
+                    gitStatus = gitStatus
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message
+                )
+            }
         }
     }
-
+    
+    fun navigateUp() {
+        val currentPath = _uiState.value.currentPath
+        val parent = File(currentPath).parentFile?.absolutePath
+        if (parent != null) {
+            navigateTo(parent)
+        }
+    }
+    
     fun openFile(path: String) {
         viewModelScope.launch {
-            val exists = withContext(Dispatchers.IO) {
-                path.isNotBlank() && File(path).exists()
-            }
+            val file = File(path)
+            if (!file.exists() || file.isDirectory) return@launch
             
-            if (exists) {
-                val file = File(path)
-                val tabs = _state.value.tabs
-                val existingIndex = tabs.indexOfFirst { it.path == path }
-                
-                if (existingIndex >= 0) {
-                    _state.value = _state.value.copy(currentTabIndex = existingIndex)
-                } else {
-                    val newTab = EditorTab(path = path, name = file.name)
-                    _state.value = _state.value.copy(
-                        tabs = tabs + newTab,
-                        currentTabIndex = tabs.size
+            val existingTab = _uiState.value.tabs.find { it.file.path == path }
+            
+            if (existingTab != null) {
+                val index = _uiState.value.tabs.indexOf(existingTab)
+                _uiState.value = _uiState.value.copy(currentTabIndex = index)
+            } else {
+                try {
+                    val content = fileRepository.readFile(path)
+                    val tab = EditorTab(
+                        id = UUID.randomUUID().toString(),
+                        file = ProjectFile.fromFile(file),
+                        content = content,
+                        isModified = false
                     )
+                    _uiState.value = _uiState.value.copy(
+                        tabs = _uiState.value.tabs + tab,
+                        currentTabIndex = _uiState.value.tabs.size
+                    )
+                } catch (e: Exception) {
+                    _uiState.value = _uiState.value.copy(error = "Failed to open file: ${e.message}")
                 }
             }
         }
     }
-
-    fun openFileFromUri(uri: Uri, context: Context) {
-        viewModelScope.launch {
-            val path = withContext(Dispatchers.IO) {
-                when (uri.scheme) {
-                    "file" -> uri.path
-                    "content" -> {
-                        val cursor = context.contentResolver.query(uri, null, null, null, null)
-                        cursor?.use {
-                            if (it.moveToFirst()) {
-                                val nameIndex = it.getColumnIndex("_display_name")
-                                if (nameIndex >= 0) {
-                                    val name = it.getString(nameIndex)
-                                    File(context.cacheDir, name).apply {
-                                        context.contentResolver.openInputStream(uri)?.use { input ->
-                                            outputStream().use { output ->
-                                                input.copyTo(output)
-                                            }
-                                        }
-                                    }.absolutePath
-                                } else null
-                            } else null
-                        }
-                    }
-                    else -> uri.path
-                }
-            }
-            path?.let { openFile(it) }
-        }
-    }
-
+    
     fun closeTab(index: Int) {
-        val tabs = _state.value.tabs.toMutableList()
+        val tabs = _uiState.value.tabs.toMutableList()
         if (index in tabs.indices) {
             tabs.removeAt(index)
-            val currentIndex = _state.value.currentTabIndex
+            val currentIndex = _uiState.value.currentTabIndex
             val newIndex = when {
                 tabs.isEmpty() -> -1
                 currentIndex >= tabs.size -> tabs.size - 1
                 currentIndex == index -> (currentIndex - 1).coerceAtLeast(0)
                 else -> currentIndex
             }
-            _state.value = _state.value.copy(tabs = tabs, currentTabIndex = newIndex)
+            _uiState.value = _uiState.value.copy(tabs = tabs, currentTabIndex = newIndex)
         }
     }
-
-    fun closeTab(path: String) {
-        val index = _state.value.tabs.indexOfFirst { it.path == path }
-        if (index >= 0) closeTab(index)
-    }
-
-    fun setCurrentTab(index: Int) {
-        if (index in _state.value.tabs.indices) {
-            _state.value = _state.value.copy(currentTabIndex = index)
+    
+    fun selectTab(index: Int) {
+        if (index in _uiState.value.tabs.indices) {
+            _uiState.value = _uiState.value.copy(currentTabIndex = index)
         }
     }
-
-    fun updateTabModified(path: String, modified: Boolean) {
-        val tabs = _state.value.tabs.map { tab ->
-            if (tab.path == path) tab.copy(isModified = modified) else tab
+    
+    fun updateTabContent(tabId: String, content: String) {
+        val tabs = _uiState.value.tabs.map { tab ->
+            if (tab.id == tabId) tab.copy(content = content, isModified = true) else tab
         }
-        _state.value = _state.value.copy(tabs = tabs)
+        _uiState.value = _uiState.value.copy(tabs = tabs)
     }
-
+    
+    fun saveCurrentTab() {
+        viewModelScope.launch {
+            val state = _uiState.value
+            val tabIndex = state.currentTabIndex
+            if (tabIndex < 0 || tabIndex >= state.tabs.size) return@launch
+            
+            val tab = state.tabs[tabIndex]
+            val success = fileRepository.writeFile(tab.file.path, tab.content)
+            
+            if (success) {
+                val tabs = state.tabs.map { t ->
+                    if (t.id == tab.id) t.copy(isModified = false) else t
+                }
+                _uiState.value = state.copy(tabs = tabs, message = "Saved")
+            } else {
+                _uiState.value = state.copy(error = "Failed to save file")
+            }
+        }
+    }
+    
+    fun createFile(name: String, isDirectory: Boolean = false) {
+        viewModelScope.launch {
+            val currentPath = _uiState.value.currentPath
+            val result = if (isDirectory) {
+                fileRepository.createDirectory(currentPath, name)
+            } else {
+                fileRepository.createFile(currentPath, name)
+            }
+            
+            if (result != null) {
+                navigateTo(currentPath)
+                _uiState.value = _uiState.value.copy(message = "Created: $name")
+            } else {
+                _uiState.value = _uiState.value.copy(error = "Failed to create")
+            }
+        }
+    }
+    
+    fun deleteFile(path: String) {
+        viewModelScope.launch {
+            if (fileRepository.delete(path)) {
+                navigateTo(_uiState.value.currentPath)
+                _uiState.value = _uiState.value.copy(message = "Deleted")
+            } else {
+                _uiState.value = _uiState.value.copy(error = "Failed to delete")
+            }
+        }
+    }
+    
     fun toggleSidebar() {
-        _state.value = _state.value.copy(isSidebarOpen = !_state.value.isSidebarOpen)
+        _uiState.value = _uiState.value.copy(isSidebarOpen = !_uiState.value.isSidebarOpen)
     }
-
+    
     fun toggleTerminal() {
-        _state.value = _state.value.copy(isTerminalOpen = !_state.value.isTerminalOpen)
+        _uiState.value = _uiState.value.copy(isTerminalOpen = !_uiState.value.isTerminalOpen)
     }
-
-    fun getCurrentFile(): File? {
-        val state = _state.value
-        return if (state.currentTabIndex >= 0 && state.currentTabIndex < state.tabs.size) {
-            File(state.tabs[state.currentTabIndex].path).takeIf { it.exists() }
-        } else null
+    
+    fun toggleGitPanel() {
+        _uiState.value = _uiState.value.copy(isGitPanelOpen = !_uiState.value.isGitPanelOpen)
+    }
+    
+    fun refreshGitStatus() {
+        viewModelScope.launch {
+            val path = _uiState.value.currentPath
+            if (gitRepository.isRepository(path)) {
+                _uiState.value = _uiState.value.copy(
+                    gitStatus = gitRepository.getStatus(path)
+                )
+            }
+        }
+    }
+    
+    fun gitInit() {
+        viewModelScope.launch {
+            val path = _uiState.value.currentPath
+            val result = gitRepository.init(path)
+            when (result) {
+                is com.koder.ide.domain.model.GitResult.Success -> {
+                    refreshGitStatus()
+                    _uiState.value = _uiState.value.copy(message = result.message)
+                }
+                is com.koder.ide.domain.model.GitResult.Error -> {
+                    _uiState.value = _uiState.value.copy(error = result.message)
+                }
+            }
+        }
+    }
+    
+    fun gitAdd(files: List<String> = emptyList<String>()) {
+        viewModelScope.launch {
+            val path = _uiState.value.currentPath
+            val result = gitRepository.add(path, files)
+            when (result) {
+                is com.koder.ide.domain.model.GitResult.Success -> {
+                    refreshGitStatus()
+                    _uiState.value = _uiState.value.copy(message = result.message)
+                }
+                is com.koder.ide.domain.model.GitResult.Error -> {
+                    _uiState.value = _uiState.value.copy(error = result.message)
+                }
+            }
+        }
+    }
+    
+    fun gitCommit(message: String) {
+        viewModelScope.launch {
+            val path = _uiState.value.currentPath
+            val result = gitRepository.commit(path, message)
+            when (result) {
+                is com.koder.ide.domain.model.GitResult.Success -> {
+                    refreshGitStatus()
+                    _uiState.value = _uiState.value.copy(message = result.message)
+                }
+                is com.koder.ide.domain.model.GitResult.Error -> {
+                    _uiState.value = _uiState.value.copy(error = result.message)
+                }
+            }
+        }
+    }
+    
+    fun gitPush() {
+        viewModelScope.launch {
+            val path = _uiState.value.currentPath
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val result = gitRepository.push(path)
+            _uiState.value = _uiState.value.copy(isLoading = false)
+            when (result) {
+                is com.koder.ide.domain.model.GitResult.Success -> {
+                    _uiState.value = _uiState.value.copy(message = result.message)
+                }
+                is com.koder.ide.domain.model.GitResult.Error -> {
+                    _uiState.value = _uiState.value.copy(error = result.message)
+                }
+            }
+        }
+    }
+    
+    fun gitPull() {
+        viewModelScope.launch {
+            val path = _uiState.value.currentPath
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val result = gitRepository.pull(path)
+            _uiState.value = _uiState.value.copy(isLoading = false)
+            when (result) {
+                is com.koder.ide.domain.model.GitResult.Success -> {
+                    refreshGitStatus()
+                    _uiState.value = _uiState.value.copy(message = result.message)
+                }
+                is com.koder.ide.domain.model.GitResult.Error -> {
+                    _uiState.value = _uiState.value.copy(error = result.message)
+                }
+            }
+        }
+    }
+    
+    fun clearMessage() {
+        _uiState.value = _uiState.value.copy(message = null, error = null)
     }
 }

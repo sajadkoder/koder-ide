@@ -17,38 +17,41 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.koder.ide.core.editor.EditorHelper
 import com.koder.ide.presentation.theme.KoderTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
+    
     private val viewModel: MainViewModel by viewModels()
-
+    
     private val manageStorageLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
-            viewModel.loadProject()
+            viewModel.loadExternalStorage()
         }
     }
-
+    
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         if (permissions.entries.all { it.value }) {
-            viewModel.loadProject()
+            viewModel.loadExternalStorage()
         } else {
             Toast.makeText(this, "Storage permission required", Toast.LENGTH_LONG).show()
         }
     }
-
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
-
+        
+        EditorHelper.initialize(this)
+        
         checkPermissions()
-
+        
         setContent {
             KoderTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -57,11 +60,11 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
+    
     private fun checkPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (Environment.isExternalStorageManager()) {
-                viewModel.loadProject()
+                viewModel.loadExternalStorage()
             } else {
                 try {
                     manageStorageLauncher.launch(
@@ -88,7 +91,7 @@ class MainActivity : ComponentActivity() {
             if (permissions.isNotEmpty()) {
                 permissionLauncher.launch(permissions.toTypedArray())
             } else {
-                viewModel.loadProject()
+                viewModel.loadExternalStorage()
             }
         }
     }
