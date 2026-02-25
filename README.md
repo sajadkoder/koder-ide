@@ -14,7 +14,7 @@
 
 ## Overview
 
-Koder IDE is a powerful code editor for Android devices. Built with Kotlin and Jetpack Compose, it provides a professional coding experience with syntax highlighting, file management, and more.
+Koder IDE is a powerful code editor for Android devices. Built with Kotlin and Jetpack Compose, it provides a professional coding experience with syntax highlighting, file management, terminal, and Git integration.
 
 ## Features
 
@@ -22,13 +22,22 @@ Koder IDE is a powerful code editor for Android devices. Built with Kotlin and J
 - **Syntax Highlighting** - Powered by Sora Editor with TextMate grammars
 - **Multi-language Support** - Java, Kotlin, Python, JavaScript, TypeScript, JSON, XML, HTML, CSS, Markdown, C/C++, YAML, SQL
 - **Undo/Redo** - Full undo/redo support
-- **Line Numbers** - Toggle line number display
+- **Line Numbers** - Display line numbers
 - **File Tabs** - Work with multiple files simultaneously
 
 ### File Explorer
 - **Project Navigation** - Full directory tree view
-- **File Operations** - Create, delete, rename files
+- **File Operations** - Create, delete files and folders
 - **Quick Access** - Open files from anywhere on your device
+
+### Terminal
+- **Shell Execution** - Run shell commands directly
+- **Command History** - Execute common commands
+
+### Git Integration
+- **Repository Init** - Initialize new repositories
+- **Stage & Commit** - Stage files and commit changes
+- **Push/Pull** - Push and pull from remote
 
 ### UI/UX
 - **Dark Theme** - Beautiful dark theme inspired by GitHub Dark
@@ -38,14 +47,19 @@ Koder IDE is a powerful code editor for Android devices. Built with Kotlin and J
 ## Architecture
 
 ```
-app/src/main/java/com/koder/ide/
+com.koder.ide/
+├── domain/
+│   ├── model/       # Data models (EditorTab, ProjectFile, GitStatus)
+│   └── repository/  # Repository interfaces
+├── data/
+│   └── repository/   # Repository implementations
 ├── core/
-│   ├── di/                  # Dependency Injection
-│   ├── editor/              # Code Editor (Sora Editor wrapper)
-│   └── util/                # Utility classes
+│   ├── di/          # Dependency Injection (Hilt)
+│   ├── editor/      # Sora Editor wrapper
+│   └── util/        # Utility classes
 └── presentation/
-    ├── main/                # Main screen, ViewModel
-    └── theme/               # App theming
+    ├── main/        # Main screen, ViewModel
+    └── theme/       # App theming
 ```
 
 ## Tech Stack
@@ -54,7 +68,7 @@ app/src/main/java/com/koder/ide/
 |----------|-------------|
 | Language | Kotlin 2.1.0 |
 | UI | Jetpack Compose, Material Design 3 |
-| Architecture | MVVM |
+| Architecture | Clean Architecture + MVVM |
 | DI | Hilt |
 | Async | Coroutines, Flow |
 | Editor | Sora Editor 0.24.4 |
@@ -71,8 +85,8 @@ app/src/main/java/com/koder/ide/
 
 ```bash
 # Clone the repository
-git clone https://github.com/sajadkoder/koder.git
-cd koder
+git clone https://github.com/sajadkoder/koder-ide.git
+cd koder-ide
 
 # Build debug APK
 ./gradlew assembleDebug
@@ -102,8 +116,8 @@ cd koder
 
 ## Roadmap
 
-- [ ] Terminal emulator
-- [ ] Git integration (commit, push, pull)
+- [x] Terminal emulator
+- [x] Git integration
 - [ ] LSP support
 - [ ] Build/Run projects
 - [ ] Plugin system
